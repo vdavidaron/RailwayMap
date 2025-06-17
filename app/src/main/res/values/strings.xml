@@ -1,0 +1,22 @@
+<resources>
+    <string name="app_name">Railway Map</string>
+    <string name="title_activity_maps">Railway Map</string>
+    <string-array name="railway_styles">
+        <item>standard</item>
+        <item>maxspeed</item>
+        <item>gauge</item>
+        <item>electrification</item>
+        <item>signals</item>
+    </string-array>
+    <string name="reload">Reload Map</string>
+    <string-array name="map_types">
+        <item>Normal</item>
+        <item>Satellite</item>
+        <item>Hybrid</item>
+        <item>Terrain</item>
+    </string-array>
+
+
+
+
+</resources>
