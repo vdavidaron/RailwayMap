@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.location.Location
 import android.os.Build
 import android.os.Bundle
@@ -24,19 +25,22 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
 import java.io.ByteArrayOutputStream
-import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var mMap: GoogleMap
+    private var mapReady = false
+
     private lateinit var binding: ActivityMapsBinding
     private var tileOverlay: TileOverlay? = null
+
     private lateinit var styleSpinner: Spinner
-    private var currentStyle: String = "standard"
-    private lateinit var reloadButton: ImageButton
     private lateinit var mapTypeSpinner: Spinner
+    private lateinit var reloadButton: ImageButton
+
+    private var currentStyle: String = "standard"
 
     private val LOCATION_PERMISSION_REQUEST = 1001
 
@@ -47,33 +51,36 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         supportActionBar?.hide()
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.statusBarColor = Color.TRANSPARENT
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.insetsController?.show(android.view.WindowInsets.Type.statusBars())
         } else {
             @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN)
+            window.decorView.systemUiVisibility =
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
         }
 
-        // Reload button
-        reloadButton = findViewById(R.id.reloadButton)
-        reloadButton.setOnClickListener {
-            Log.d("ReloadButton", "Reloading map overlay...")
-            updateRailwayOverlay()
-        }
-
-        // Style spinner
         styleSpinner = findViewById(R.id.styleSpinner)
+        mapTypeSpinner = findViewById(R.id.mapTypeSpinner)
+        reloadButton = findViewById(R.id.reloadButton)
+
+        reloadButton.setOnClickListener {
+            if (mapReady) {
+                Log.d("ReloadButton", "Reloading map overlay...")
+                updateRailwayOverlay()
+            }
+        }
+
         styleSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
                 parent: AdapterView<*>, view: View?, position: Int, id: Long
             ) {
-                val selectedStyle = parent.getItemAtPosition(position).toString()
-                if (selectedStyle != currentStyle) {
-                    currentStyle = selectedStyle
+                if (!mapReady) return
+                val selected = parent.getItemAtPosition(position).toString()
+                if (selected != currentStyle) {
+                    currentStyle = selected
                     updateRailwayOverlay()
                 }
             }
@@ -81,38 +88,37 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             override fun onNothingSelected(parent: AdapterView<*>) {}
         }
 
-        // Map fragment
-        val mapFragment = supportFragmentManager
-            .findFragmentById(R.id.map) as SupportMapFragment
-        mapFragment.getMapAsync(this)
-    }
-
-    override fun onMapReady(googleMap: GoogleMap) {
-        mMap = googleMap
-
-        // Set default map type
-        mMap.mapType = GoogleMap.MAP_TYPE_HYBRID
-        mMap.setPadding(15, 240, 0, 0)
-        enableLocationFeatures()
-        updateRailwayOverlay()
-
-        // Map type spinner logic (SAFE to access mMap now)
-        mapTypeSpinner = findViewById(R.id.mapTypeSpinner)
-        mapTypeSpinner.setSelection(2) // Hybrid
         mapTypeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
                 parent: AdapterView<*>, view: View?, position: Int, id: Long
             ) {
-                when (position) {
-                    0 -> mMap.mapType = GoogleMap.MAP_TYPE_NORMAL
-                    1 -> mMap.mapType = GoogleMap.MAP_TYPE_SATELLITE
-                    2 -> mMap.mapType = GoogleMap.MAP_TYPE_HYBRID
-                    3 -> mMap.mapType = GoogleMap.MAP_TYPE_TERRAIN
+                if (!mapReady) return
+                mMap.mapType = when (position) {
+                    0 -> GoogleMap.MAP_TYPE_NORMAL
+                    1 -> GoogleMap.MAP_TYPE_SATELLITE
+                    2 -> GoogleMap.MAP_TYPE_HYBRID
+                    3 -> GoogleMap.MAP_TYPE_TERRAIN
+                    else -> GoogleMap.MAP_TYPE_HYBRID
                 }
             }
 
             override fun onNothingSelected(parent: AdapterView<*>) {}
         }
+
+        (supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment)
+            .getMapAsync(this)
+    }
+
+    override fun onMapReady(googleMap: GoogleMap) {
+        mMap = googleMap
+        mapReady = true
+
+        mMap.mapType = GoogleMap.MAP_TYPE_HYBRID
+        mMap.setPadding(15, 240, 0, 0)
+        enableLocationFeatures()
+        updateRailwayOverlay()
+
+        mapTypeSpinner.setSelection(2)
     }
 
     private fun enableLocationFeatures() {
@@ -123,14 +129,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             mMap.isMyLocationEnabled = true
             mMap.uiSettings.isMyLocationButtonEnabled = true
 
-            val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-            fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
-                location?.let {
-                    val userLatLng = LatLng(it.latitude, it.longitude)
-                    mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLatLng, 14f))
+            LocationServices.getFusedLocationProviderClient(this)
+                .lastLocation.addOnSuccessListener { loc: Location? ->
+                    loc?.let {
+                        val here = LatLng(it.latitude, it.longitude)
+                        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(here, 14f))
+                    }
                 }
-            }
-
         } else {
             ActivityCompat.requestPermissions(
                 this,
@@ -147,40 +152,33 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         if (requestCode == LOCATION_PERMISSION_REQUEST &&
             grantResults.isNotEmpty() &&
             grantResults[0] == PackageManager.PERMISSION_GRANTED
-        ) {
-            enableLocationFeatures()
-        }
+        ) enableLocationFeatures()
     }
 
     private fun updateRailwayOverlay() {
         tileOverlay?.remove()
 
         val tileProvider = object : TileProvider {
-            override fun getTile(x: Int, y: Int, zoom: Int): Tile? {
-                try {
-                    val subdomain = listOf("a", "b", "c").random()
-                    val url = URL("https://$subdomain.tiles.openrailwaymap.org/$currentStyle/$zoom/$x/$y.png")
-
-                    val connection = url.openConnection() as HttpURLConnection
-                    connection.setRequestProperty(
-                        "User-Agent",
-                        "Mozilla/5.0 (Android RailwayMapApp)"
+            override fun getTile(x: Int, y: Int, zoom: Int): Tile {
+                return try {
+                    val sub = listOf("a", "b", "c").random()
+                    val url = URL(
+                        "https://$sub.tiles.openrailwaymap.org/$currentStyle/$zoom/$x/$y.png"
                     )
-                    connection.connectTimeout = 3000
-                    connection.readTimeout = 3000
 
-                    val inputStream: InputStream = connection.inputStream
-                    val bitmap = BitmapFactory.decodeStream(inputStream)
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (RailwayMapApp)")
+                    conn.connectTimeout = 3000
+                    conn.readTimeout = 3000
 
+                    val bmp = BitmapFactory.decodeStream(conn.inputStream)
                     val stream = ByteArrayOutputStream()
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
-                    val data = stream.toByteArray()
-
-                    return Tile(512, 512, data)
+                    bmp.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                    Tile(512, 512, stream.toByteArray())
 
                 } catch (e: Exception) {
                     Log.e("TileProvider", "Tile load failed: ${e.message}")
-                    return null
+                    createTransparentTile()
                 }
             }
         }
@@ -189,6 +187,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             TileOverlayOptions()
                 .tileProvider(tileProvider)
                 .zIndex(1f)
+                .fadeIn(true)
         )
     }
+
+    private fun createTransparentTile(): Tile {
+        val bitmap = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
+        val stream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 0, stream)
+        return Tile(512, 512, stream.toByteArray())
+    }
 }
+

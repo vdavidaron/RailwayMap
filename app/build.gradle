@@ -4,8 +4,12 @@ plugins {
     id 'com.google.android.libraries.mapsplatform.secrets-gradle-plugin'
 }
 
-// ✅ Read the MAPS_API_KEY from local.properties safely
-def MAPS_API_KEY = project.findProperty("MAPS_API_KEY") ?: ""
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(new FileInputStream(localPropertiesFile))
+}
+def MAPS_API_KEY = localProperties.getProperty("MAPS_API_KEY") ?: ""
 
 android {
     compileSdk 32
@@ -19,9 +23,7 @@ android {
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
-        // ✅ Inject as BuildConfig field and string resource
-        buildConfigField "String", "MAPS_API_KEY", "\"${MAPS_API_KEY}\""
-        resValue "string", "google_maps_key", MAPS_API_KEY
+        manifestPlaceholders = [ MAPS_API_KEY: MAPS_API_KEY ]
     }
 
     buildTypes {
