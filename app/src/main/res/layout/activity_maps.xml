@@ -23,6 +23,18 @@
         android:layout_gravity="top|start"
         android:entries="@array/railway_styles" />
 
+    <!-- Info Button -->
+    <ImageButton
+        android:id="@+id/infoButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="48dp"
+        android:layout_marginEnd="60dp"
+        android:layout_gravity="top|end"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/map_info"
+        android:src="@android:drawable/ic_dialog_info" />
+
     <!-- Reload Button -->
     <ImageButton
         android:id="@+id/reloadButton"
